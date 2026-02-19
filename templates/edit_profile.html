@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Edit Profile</h2>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="mb-3">
+                {{ form.username.label(class="form-label") }}
+                {{ form.username(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.email.label(class="form-label") }}
+                {{ form.email(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.name.label(class="form-label") }}
+                {{ form.name(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.matricule.label(class="form-label") }}
+                {{ form.matricule(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.phone.label(class="form-label") }}
+                {{ form.phone(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.gender.label(class="form-label") }}
+                {{ form.gender(class="form-select") }}
+            </div>
+            <div class="mb-3">
+                {{ form.address.label(class="form-label") }}
+                {{ form.address(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.parent_contact.label(class="form-label") }}
+                {{ form.parent_contact(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.resit_registration.label(class="form-check-label") }}
+                {{ form.resit_registration(class="form-check-input") }}
+            </div>
+            <div class="mb-3">
+                {{ form.unvalidated_courses.label(class="form-label") }}
+                {{ form.unvalidated_courses(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.internship_placement.label(class="form-label") }}
+                {{ form.internship_placement(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.password.label(class="form-label") }}
+                {{ form.password(class="form-control") }}
+            </div>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+    </div>
+</div>
+{% endblock %}

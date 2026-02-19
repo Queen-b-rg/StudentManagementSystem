@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<div class="mb-3">
+    <form method="GET" class="form-inline">
+        <input type="text" name="search" class="form-control" placeholder="Search by Matricule" value="{{ search_query }}">
+        <button type="submit" class="btn btn-secondary ms-2">Search</button>
+        {% if search_query %}
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-warning ms-2">Clear Search</a>
+        {% endif %}
+    </form>
+</div>
+
+<a href="{{ url_for('add_student') }}" class="btn btn-primary mb-3">Add Student</a>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Matricule</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if students %}
+        {% for student in students %}
+        <tr>
+            <td>{{ student.user.name }}</td>
+            <td>{{ student.user.matricule }}</td>
+            <td>
+                <a href="{{ url_for('release_results', student_id=student.id) }}" class="btn btn-success btn-sm">Release Results</a>
+                <a href="{{ url_for('make_finance_visible', student_id=student.id) }}" class="btn btn-info btn-sm">Make Finance Visible</a>
+                <a href="{{ url_for('delete_student', student_id=student.id) }}" class="btn btn-danger btn-sm">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+            <td colspan="3" class="text-center">No students found.</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+<a href="{{ url_for('edit_profile') }}" class="btn btn-secondary">Edit Profile</a>
+<a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+{% endblock %}

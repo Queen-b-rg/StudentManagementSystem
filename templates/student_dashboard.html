@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>Welcome, {{ current_user.name }}</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Personal Information</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Name:</strong> {{ current_user.name }}</p>
+                    <p><strong>Matricule:</strong> {{ current_user.matricule }}</p>
+                    <p><strong>Email:</strong> {{ current_user.email }}</p>
+                    <p><strong>Phone:</strong> {{ current_user.phone }}</p>
+                    <p><strong>Gender:</strong> {{ current_user.gender }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Address:</strong> {{ current_user.address }}</p>
+                    <p><strong>Parent Contact:</strong> {{ current_user.parent_contact }}</p>
+                    <p><strong>Department:</strong> {{ student.department.name }}</p>
+                    <p><strong>Program:</strong> {{ student.program.name }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Academic Status</h4>
+        </div>
+        <div class="card-body">
+            <p><strong>Resit Registration:</strong> {% if student.resit_registration %}<span class="badge bg-warning">Yes</span>{% else %}<span class="badge bg-success">No</span>{% endif %}</p>
+            <p><strong>Unvalidated Courses:</strong> {{ student.unvalidated_courses if student.unvalidated_courses else 'None' }}</p>
+            <p><strong>Internship Placement:</strong> {{ student.internship_placement if student.internship_placement else 'Not Assigned' }}</p>
+            <p><strong>Transcripts Available:</strong> {% if student.has_transcripts %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-danger">Not Yet</span>{% endif %}</p>
+        </div>
+    </div>
+
+    <h3>Results</h3>
+    {% if results %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>CA Score</th>
+                <th>Exam Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results %}
+            <tr>
+                <td>{{ result.subject }}</td>
+                <td>{{ result.ca_score }}</td>
+                <td>{{ result.exam_score }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="alert alert-info">No results yet.</p>
+    {% endif %}
+
+    <h3>Finance</h3>
+    {% if finances %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Fees</th>
+                <th>Balance</th>
+                <th>Platform Charges</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for finance in finances %}
+            <tr>
+                <td>{{ finance.fees }}</td>
+                <td>{{ finance.balance }}</td>
+                <td>{{ finance.platform_charges }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="alert alert-info">No finance details available.</p>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{{ url_for('edit_profile') }}" class="btn btn-primary">Edit Profile</a>
+        <a href="{{ url_for('forgot_password') }}" class="btn btn-warning">Reset Password</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+    </div>
+</div>
+{% endblock %}
