@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Staff - {{ user.name }}{% endblock %}
+
+{% block content %}
+<h2>Manage Staff: {{ user.name }}</h2>
+
+<div class="row">
+    <div class="col-md-3">
+        <a href="{{ url_for('assign_courses', user_id=user.id) }}" class="btn btn-primary btn-block mb-2">Assign Courses/Classes</a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('manage_grades', user_id=user.id) }}" class="btn btn-success btn-block mb-2">Manage Student Grades</a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('view_assigned_students', user_id=user.id) }}" class="btn btn-info btn-block mb-2">View Assigned Students</a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('reset_staff_password', user_id=user.id) }}" class="btn btn-warning btn-block mb-2">Reset Password</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <a href="{{ url_for('edit_permissions', user_id=user.id) }}" class="btn btn-secondary btn-block mb-2">Edit Permissions</a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('view_attendance_log', user_id=user.id) }}" class="btn btn-dark btn-block mb-2">View Attendance Log</a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('generate_report', user_id=user.id) }}" class="btn btn-primary btn-block mb-2">Generate Report</a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('add_assignments', user_id=user.id) }}" class="btn btn-success btn-block mb-2">Add Assignments</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <a href="{{ url_for('view_submitted_assignments', user_id=user.id) }}" class="btn btn-info btn-block mb-2">View Submitted Assignments</a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('add_notes', user_id=user.id) }}" class="btn btn-warning btn-block mb-2">Add Notes</a>
+    </div>
+</div>
+
+<a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+{% endblock %}

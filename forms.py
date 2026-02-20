@@ -2,11 +2,12 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, SelectField, FloatField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
 from models import User, Student, Department, Program
+from wtforms import TextAreaField
 
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
-    confirm_password = PasswordField('Confirm Password', validators=[DataRequired()])
+
     submit = SubmitField('Login')
 
 class RegistrationForm(FlaskForm):
@@ -18,10 +19,12 @@ class RegistrationForm(FlaskForm):
     gender = SelectField('Gender', choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], validators=[DataRequired()])
     address = StringField('Address', validators=[DataRequired(), Length(min=5, max=300)])
     parent_contact = StringField('Parent Contact', validators=[DataRequired(), Length(min=7, max=100)])
+    role = SelectField('Role', choices=[('student', 'Student'), ('staff', 'Staff')], validators=[DataRequired()])
     department = SelectField('Department', coerce=int, validators=[DataRequired()])
     program = SelectField('Program', coerce=int, validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
-    confirm_password_reg = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    
     submit = SubmitField('Register')
 
     def __init__(self, *args, **kwargs):
@@ -98,12 +101,43 @@ class AddStudentForm(FlaskForm):
         if user:
             raise ValidationError('Matricule already exists. Please use a different one.')
 
+class AddStaffForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=2, max=150)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    matricule = StringField('Matricule', validators=[Length(min=2, max=50)])
+    name = StringField('Full Name', validators=[DataRequired(), Length(min=2, max=150)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
+    submit = SubmitField('Add Staff')
+
+    def validate_username(self, username):
+        user = User.query.filter_by(username=username.data).first()
+        if user:
+            raise ValidationError('Username already exists.')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user:
+            raise ValidationError('Email already exists.')
+
+    def validate_matricule(self, matricule):
+        if matricule.data:
+            user = User.query.filter_by(matricule=matricule.data).first()
+            if user:
+                raise ValidationError('Matricule already exists. Please use a different one.')
+
 class ResultForm(FlaskForm):
     subject = StringField('Subject', validators=[DataRequired()])
     ca_score = FloatField('CA Score', validators=[DataRequired()])
     exam_score = FloatField('Exam Score', validators=[DataRequired()])
     is_released = BooleanField('Release Results')
     submit = SubmitField('Add Result')
+
+
+class AssignmentForm(FlaskForm):
+    title = StringField('Title', validators=[DataRequired(), Length(min=2, max=200)])
+    description = TextAreaField('Description', validators=[Length(max=1000)])
+    due_date = StringField('Due Date (optional)')
+    submit = SubmitField('Create Assignment')
 
 class FinanceForm(FlaskForm):
     fees = FloatField('Fees', validators=[DataRequired()])

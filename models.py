@@ -9,13 +9,14 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(150), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(50), nullable=False)  # 'student' or 'admin'
+    role = db.Column(db.String(50), nullable=False)  # 'student' or 'admin' or 'staff'
     name = db.Column(db.String(150), nullable=True)
     matricule = db.Column(db.String(50), nullable=True, unique=True)
     phone = db.Column(db.String(20), nullable=True)
     gender = db.Column(db.String(20), nullable=True)
     address = db.Column(db.String(300), nullable=True)
     parent_contact = db.Column(db.String(100), nullable=True)
+    reset_token = db.Column(db.String(128), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
 
     def set_password(self, password):
@@ -37,6 +38,38 @@ class Student(db.Model):
     user = db.relationship('User', backref=db.backref('student', uselist=False))
     department = db.relationship('Department', backref='students')
     program = db.relationship('Program', backref='students')
+
+
+class StaffAssignment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    staff_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
+
+    staff = db.relationship('User', backref='assigned_students')
+    student = db.relationship('Student', backref='staff_assignments')
+
+
+class Assignment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(1000), nullable=True)
+    staff_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    due_date = db.Column(db.String(50), nullable=True)
+
+    staff = db.relationship('User', backref='assignments')
+
+
+class Submission(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('assignment.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
+    content = db.Column(db.String(2000), nullable=True)
+    submitted_at = db.Column(db.DateTime, server_default=db.func.now())
+    grade = db.Column(db.String(20), nullable=True)
+
+    assignment = db.relationship('Assignment', backref='submissions')
+    student = db.relationship('Student', backref='submissions')
 
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)

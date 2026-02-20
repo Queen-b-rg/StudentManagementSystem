@@ -5,10 +5,12 @@ from flask_wtf import FlaskForm
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash
 from sqlalchemy.exc import IntegrityError, OperationalError
-from models import db, User, Student, Department, Program, Result, Finance
-from forms import LoginForm, RegistrationForm, EditProfileForm, ForgotPasswordForm, ResetPasswordForm, AddStudentForm, ResultForm, FinanceForm
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
+from models import db, User, Student, Department, Program, Result, Finance, StaffAssignment, Assignment, Submission
+from forms import LoginForm, RegistrationForm, EditProfileForm, ForgotPasswordForm, ResetPasswordForm, AddStudentForm, ResultForm, FinanceForm, AddStaffForm, AssignmentForm
 from config import Config
 import os
+import socket
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -17,6 +19,20 @@ db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 mail = Mail(app)
+serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+def get_local_ip():
+    """Return the machine's LAN IP address (best-effort)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't need to be reachable - used to determine default route
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = '127.0.0.1'
+    finally:
+        s.close()
+    return ip
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -32,11 +48,6 @@ def login():
     if form.validate_on_submit():
         username = form.username.data.strip()
         password = form.password.data.strip()
-        confirm_password = form.confirm_password.data.strip()
-        
-        if password != confirm_password:
-            flash('Passwords do not match')
-            return render_template('login.html', form=form)
         
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
@@ -50,8 +61,10 @@ def login():
 def dashboard_choice():
     if current_user.role == 'admin':
         return redirect(url_for('admin_dashboard'))
+    elif current_user.role == 'staff':
+        return redirect(url_for('staff_dashboard'))
     else:
-        return render_template('dashboard_choice.html')
+        return redirect(url_for('student_dashboard'))
 
 @app.route('/logout')
 @login_required
@@ -63,7 +76,7 @@ def logout():
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User(username=form.username.data, email=form.email.data, role='student')
+        user = User(username=form.username.data, email=form.email.data, role=form.role.data)
         user.set_password(form.password.data)
         user.name = form.name.data
         user.matricule = form.matricule.data
@@ -74,9 +87,10 @@ def register():
         try:
             db.session.add(user)
             db.session.commit()
-            student = Student(user_id=user.id, department_id=form.department.data, program_id=form.program.data)
-            db.session.add(student)
-            db.session.commit()
+            if form.role.data == 'student':
+                student = Student(user_id=user.id, department_id=form.department.data, program_id=form.program.data)
+                db.session.add(student)
+                db.session.commit()
             flash('Registration successful! Please login.')
             return redirect(url_for('login'))
         except IntegrityError as e:
@@ -117,15 +131,36 @@ def student_dashboard():
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
-    if current_user.role != 'admin':
+    if current_user.role not in ['admin', 'staff']:
         return redirect(url_for('student_dashboard'))
     try:
         search_query = request.args.get('search', '').strip()
         if search_query:
-            students = Student.query.join(User).filter(User.matricule.ilike(f'%{search_query}%')).all()
+            users = User.query.filter(User.id != current_user.id).filter(
+                (User.name.ilike(f'%{search_query}%')) | 
+                (User.matricule.ilike(f'%{search_query}%')) |
+                (User.username.ilike(f'%{search_query}%'))
+            ).all()
         else:
-            students = Student.query.all()
-        return render_template('admin_dashboard.html', students=students, search_query=search_query)
+            users = User.query.filter(User.id != current_user.id).all()
+        return render_template('admin_dashboard.html', users=users, search_query=search_query)
+    except Exception as e:
+        return f"Operational error: {str(e)}"
+
+
+@app.route('/staff_dashboard')
+@login_required
+def staff_dashboard():
+    if current_user.role != 'staff':
+        # allow admins to view staff dashboard if they want
+        if current_user.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('student_dashboard'))
+
+    # For now show basic info and quick links; can be expanded later
+    try:
+        # staff should see their assigned students/assignments in future
+        return render_template('staff_dashboard.html', user=current_user)
     except Exception as e:
         return f"Operational error: {str(e)}"
 
@@ -189,16 +224,110 @@ def forgot_password():
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
         if user:
-            # Send reset email (placeholder)
-            flash('Reset link sent to your email.')
+            # timed token via itsdangerous
+            token = serializer.dumps(user.email, salt='password-reset-salt')
+            # build path and then replace hostname with local IP so link works from phone
+            path = url_for('reset_password', token=token, _external=False)
+            host_header = request.host or ''
+            # determine port from host header or default to 5000
+            if ':' in host_header:
+                port = host_header.split(':')[1]
+            else:
+                port = app.config.get('PORT', 5000)
+            local_ip = get_local_ip()
+            reset_url = f'http://{local_ip}:{port}{path}'
+
+            if app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
+                msg = Message('Password Reset Request', sender=app.config['MAIL_DEFAULT_SENDER'], recipients=[user.email])
+                msg.body = f'Click the link to reset your password:\n{reset_url}\n\nThis link will expire in 1 hour.'
+                try:
+                    mail.send(msg)
+                    flash('Check your email for the reset link. If you do not receive it, check spam.')
+                except Exception as e:
+                    flash(f'Error sending email: {str(e)}')
+                    # also print debug info to console
+                    print('Error sending password reset email:', str(e))
+                    print('Prepared reset link:', reset_url)
+            else:
+                # helpful local testing fallback
+                flash('Email credentials not configured. Copy the reset link from the server console.')
+                print('\n*** PASSWORD RESET LINK (TESTING) ***')
+                print(reset_url)
+                print('*** END LINK ***\n')
         else:
-            flash('Email not found.')
+            flash('If an account with that email exists, a reset link has been sent to your email.')
     return render_template('forgot_password.html', form=form)
+
+@app.route('/test_email/<email>')
+def test_email(email):
+    print(f'\n--- Test Email Route ---')
+    print(f'MAIL_SERVER: {app.config.get("MAIL_SERVER")}')
+    print(f'MAIL_PORT: {app.config.get("MAIL_PORT")}')
+    print(f'MAIL_USE_TLS: {app.config.get("MAIL_USE_TLS")}')
+    print(f'MAIL_USERNAME: {app.config.get("MAIL_USERNAME")}')
+    print(f'MAIL_PASSWORD: {"***" if app.config.get("MAIL_PASSWORD") else "NOT SET"}')
+    print(f'MAIL_DEFAULT_SENDER: {app.config.get("MAIL_DEFAULT_SENDER")}')
+    print(f'------------------------\n')
+    
+    if not app.config['MAIL_USERNAME'] or not app.config['MAIL_PASSWORD']:
+        return {'status': 'ERROR', 'message': f'Email credentials not configured!', 'MAIL_USERNAME': app.config['MAIL_USERNAME'], 'MAIL_PASSWORD': 'NOT SET'}
+    
+    try:
+        msg = Message('Test Email from StudentApp', sender=app.config['MAIL_DEFAULT_SENDER'], recipients=[email])
+        msg.body = 'This is a test email from StudentApp to verify your email configuration is working.'
+        mail.send(msg)
+        print(f'✓ Test email sent successfully to {email}')
+        return {'status': 'SUCCESS', 'message': f'Test email sent to {email}'}
+    except Exception as e:
+        error_msg = str(e)
+        print(f'✗ Error sending test email: {error_msg}')
+        return {'status': 'ERROR', 'message': f'Error: {error_msg}'}
+
+@app.route('/mail_config')
+def mail_config():
+    """Display current mail configuration for debugging"""
+    return {
+        'MAIL_SERVER': app.config.get('MAIL_SERVER'),
+        'MAIL_PORT': app.config.get('MAIL_PORT'),
+        'MAIL_USE_TLS': app.config.get('MAIL_USE_TLS'),
+        'MAIL_USERNAME': app.config.get('MAIL_USERNAME'),
+        'MAIL_PASSWORD': '***SET***' if app.config.get('MAIL_PASSWORD') else 'NOT SET',
+        'MAIL_DEFAULT_SENDER': app.config.get('MAIL_DEFAULT_SENDER'),
+        'Instructions': 'Set MAIL_USERNAME and MAIL_PASSWORD environment variables before starting the app'
+    }
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)  # 1 hour expiry
+    except SignatureExpired:
+        flash('The reset link has expired. Please request a new one.')
+        return redirect(url_for('forgot_password'))
+    except BadSignature:
+        flash('Invalid reset link.')
+        return redirect(url_for('login'))
+    
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash('User not found.')
+        return redirect(url_for('login'))
+    
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        db.session.commit()
+        print(f'\n--- Password Reset Successful ---')
+        print(f'User: {user.email}')
+        print(f'Password has been updated in database')
+        print(f'--------------------------------\n')
+        flash('Password reset successful. Please login with your new password.')
+        return redirect(url_for('login'))
+    return render_template('reset_password.html', form=form)
 
 @app.route('/add_student', methods=['GET', 'POST'])
 @login_required
 def add_student():
-    if current_user.role != 'admin':
+    if current_user.role not in ['admin', 'staff']:
         return redirect(url_for('student_dashboard'))
     form = AddStudentForm()
     if form.validate_on_submit():
@@ -234,22 +363,175 @@ def add_student():
             flash(f'Operational error: {str(e)}')
     return render_template('add_student.html', form=form)
 
-@app.route('/delete_student/<int:student_id>')
+@app.route('/add_staff', methods=['GET', 'POST'])
 @login_required
-def delete_student(student_id):
-    if current_user.role != 'admin':
+def add_staff():
+    if current_user.role not in ['admin', 'staff']:
         return redirect(url_for('student_dashboard'))
-    student = Student.query.get_or_404(student_id)
-    db.session.delete(student)
-    db.session.delete(student.user)
+    form = AddStaffForm()
+    if form.validate_on_submit():
+        # Check if user with this email already exists
+        existing_user = User.query.filter_by(email=form.email.data).first()
+        if existing_user:
+            flash('A user with this email already exists.')
+            return render_template('add_staff.html', form=form)
+        
+        user = User(username=form.username.data, email=form.email.data, role='staff')
+        user.set_password(form.password.data)
+        user.name = form.name.data
+        user.matricule = form.matricule.data if form.matricule.data else None
+        try:
+            db.session.add(user)
+            db.session.commit()
+            flash('Staff added successfully!')
+            return redirect(url_for('admin_dashboard'))
+        except IntegrityError as e:
+            db.session.rollback()
+            flash(f'Error adding staff: This email may already exist.')
+        except OperationalError as e:
+            db.session.rollback()
+            flash(f'Operational error: {str(e)}')
+    return render_template('add_staff.html', form=form)
+
+@app.route('/delete_user/<int:user_id>')
+@login_required
+def delete_user(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    if user.role == 'student' and user.student:
+        db.session.delete(user.student)
+    db.session.delete(user)
     db.session.commit()
-    flash('Student deleted successfully!')
+    flash('User deleted successfully!')
     return redirect(url_for('admin_dashboard'))
+
+@app.route('/manage_staff/<int:user_id>')
+@login_required
+def manage_staff(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    if user.role != 'staff':
+        flash('User is not a staff member.')
+        return redirect(url_for('admin_dashboard'))
+    return render_template('manage_staff.html', user=user)
+
+@app.route('/assign_courses/<int:user_id>')
+@login_required
+def assign_courses(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # Render a simple page for assigning courses (UI to be expanded)
+    programs = Program.query.all()
+    return render_template('assign_courses.html', staff=user, programs=programs)
+
+@app.route('/manage_grades/<int:user_id>')
+@login_required
+def manage_grades(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # Show assigned students and their results for grading
+    assignments = StaffAssignment.query.filter_by(staff_id=user.id).all()
+    students = [sa.student for sa in assignments]
+    return render_template('manage_grades.html', staff=user, students=students)
+
+@app.route('/view_assigned_students/<int:user_id>')
+@login_required
+def view_assigned_students(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # list students assigned to this staff
+    assignments = StaffAssignment.query.filter_by(staff_id=user.id).all()
+    students = [sa.student for sa in assignments]
+    return render_template('view_assigned_students.html', staff=user, students=students)
+
+@app.route('/reset_staff_password/<int:user_id>')
+@login_required
+def reset_staff_password(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # Generate new password or something
+    new_password = 'temp123'
+    user.set_password(new_password)
+    db.session.commit()
+    flash(f'Password reset to: {new_password}')
+    return redirect(url_for('manage_staff', user_id=user_id))
+
+@app.route('/edit_permissions/<int:user_id>')
+@login_required
+def edit_permissions(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # Minimal permissions editor
+    return render_template('edit_permissions.html', staff=user)
+
+@app.route('/view_attendance_log/<int:user_id>')
+@login_required
+def view_attendance_log(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # Minimal attendance view
+    attendance = []
+    return render_template('attendance_log.html', staff=user, attendance=attendance)
+
+@app.route('/generate_report/<int:user_id>')
+@login_required
+def generate_report(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # Simple report page (expand with real data later)
+    return render_template('generate_report.html', staff=user)
+
+@app.route('/add_assignments/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+def add_assignments(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    form = AssignmentForm()
+    if form.validate_on_submit():
+        assignment = Assignment(title=form.title.data, description=form.description.data, staff_id=user.id, due_date=form.due_date.data)
+        db.session.add(assignment)
+        db.session.commit()
+        flash('Assignment created successfully.')
+        return redirect(url_for('manage_staff', user_id=user_id))
+    return render_template('add_assignment.html', form=form, staff=user)
+
+@app.route('/view_submitted_assignments/<int:user_id>')
+@login_required
+def view_submitted_assignments(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # gather submissions for assignments created by this staff
+    assignments = Assignment.query.filter_by(staff_id=user.id).all()
+    submissions = []
+    for a in assignments:
+        for s in a.submissions:
+            submissions.append({'assignment': a, 'submission': s})
+    return render_template('view_submissions.html', staff=user, submissions=submissions)
+
+@app.route('/add_notes/<int:user_id>')
+@login_required
+def add_notes(user_id):
+    if current_user.role not in ['admin', 'staff']:
+        return redirect(url_for('student_dashboard'))
+    user = User.query.get_or_404(user_id)
+    # Minimal add-notes page
+    return render_template('add_notes.html', staff=user)
 
 @app.route('/release_results/<int:student_id>', methods=['GET', 'POST'])
 @login_required
 def release_results(student_id):
-    if current_user.role != 'admin':
+    if current_user.role not in ['admin', 'staff']:
         return redirect(url_for('student_dashboard'))
     results = Result.query.filter_by(student_id=student_id).all()
     for result in results:
@@ -261,7 +543,7 @@ def release_results(student_id):
 @app.route('/make_finance_visible/<int:student_id>')
 @login_required
 def make_finance_visible(student_id):
-    if current_user.role != 'admin':
+    if current_user.role not in ['admin', 'staff']:
         return redirect(url_for('student_dashboard'))
     finances = Finance.query.filter_by(student_id=student_id).all()
     for finance in finances:
@@ -272,10 +554,10 @@ def make_finance_visible(student_id):
 
 if __name__ == '__main__':
     with app.app_context():
-        db.drop_all()
+        # Only create tables if they do not exist. Do NOT drop the database on startup.
         db.create_all()
-        
-        # Add departments and programs
+
+        # Seed departments and programs if none exist
         departments_data = {
             'School of Engineering': [
                 'Bachelor in Network Engineering',
@@ -337,22 +619,23 @@ if __name__ == '__main__':
                 'PhD in Philosophy',
             ],
         }
-        
-        for dept_name, programs in departments_data.items():
-            dept = Department(name=dept_name)
-            db.session.add(dept)
-            db.session.flush()
-            
-            for prog_name in programs:
-                prog = Program(name=prog_name, department_id=dept.id)
-                db.session.add(prog)
-        
-        db.session.commit()
-        
-        # Add admin user
-        admin = User(username='admin', email='admin@example.com', role='admin')
-        admin.set_password('admin123')
-        db.session.add(admin)
-        db.session.commit()
-        
-    app.run(debug=True)
+
+        if Department.query.first() is None:
+            for dept_name, programs in departments_data.items():
+                dept = Department(name=dept_name)
+                db.session.add(dept)
+                db.session.flush()
+
+                for prog_name in programs:
+                    prog = Program(name=prog_name, department_id=dept.id)
+                    db.session.add(prog)
+            db.session.commit()
+
+        # Add admin user if not present
+        if not User.query.filter_by(username='admin').first():
+            admin = User(username='admin', email='admin@example.com', role='admin')
+            admin.set_password('admin123')
+            db.session.add(admin)
+            db.session.commit()
+
+    app.run(host='0.0.0.0', debug=True)

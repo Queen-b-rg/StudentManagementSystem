@@ -18,11 +18,11 @@
             </div>
             <div class="mb-3">
                 {{ form.matricule.label(class="form-label") }}
-                {{ form.matricule(class="form-control") }}
+                {{ form.matricule(class="form-control", id="matricule", readonly=True) }}
             </div>
             <div class="mb-3">
                 {{ form.name.label(class="form-label") }}
-                {{ form.name(class="form-control") }}
+                {{ form.name(class="form-control", id="name") }}
             </div>
             <div class="mb-3">
                 {{ form.phone.label(class="form-label") }}
@@ -33,6 +33,10 @@
                 {{ form.gender(class="form-select") }}
             </div>
             <div class="mb-3">
+                {{ form.role.label(class="form-label") }}
+                {{ form.role(class="form-select", id="role") }}
+            </div>
+            <div class="mb-3">
                 {{ form.address.label(class="form-label") }}
                 {{ form.address(class="form-control") }}
             </div>
@@ -40,11 +44,11 @@
                 {{ form.parent_contact.label(class="form-label") }}
                 {{ form.parent_contact(class="form-control") }}
             </div>
-            <div class="mb-3">
+            <div class="mb-3" id="department-div">
                 {{ form.department.label(class="form-label") }}
                 {{ form.department(class="form-select") }}
             </div>
-            <div class="mb-3">
+            <div class="mb-3" id="program-div">
                 {{ form.program.label(class="form-label") }}
                 {{ form.program(class="form-select") }}
             </div>
@@ -53,8 +57,8 @@
                 {{ form.password(class="form-control") }}
             </div>
             <div class="mb-3">
-                {{ form.confirm_password_reg.label(class="form-label") }}
-                {{ form.confirm_password_reg(class="form-control") }}
+                {{ form.confirm_password.label(class="form-label") }}
+                {{ form.confirm_password(class="form-control") }}
             </div>
             {{ form.submit(class="btn btn-primary") }}
         </form>
@@ -65,6 +69,35 @@
 </div>
 
 <script>
+document.getElementById('name').addEventListener('input', function() {
+    const name = this.value.trim();
+    if (name) {
+        const parts = name.split(' ');
+        const firstInitial = parts[0] ? parts[0][0].toUpperCase() : '';
+        const lastName = parts[parts.length - 1] ? parts[parts.length - 1].toUpperCase() : '';
+        const randomNum = Math.floor(Math.random() * 9000) + 1000;
+        const matricule = firstInitial + lastName + randomNum;
+        document.getElementById('matricule').value = matricule;
+    } else {
+        document.getElementById('matricule').value = '';
+    }
+});
+
+document.getElementById('role').addEventListener('change', function() {
+    const role = this.value;
+    const departmentDiv = document.getElementById('department-div');
+    const programDiv = document.getElementById('program-div');
+    if (role === 'student') {
+        departmentDiv.style.display = 'block';
+        programDiv.style.display = 'block';
+    } else {
+        departmentDiv.style.display = 'none';
+        programDiv.style.display = 'none';
+    }
+});
+
+// Trigger on load
+document.getElementById('role').dispatchEvent(new Event('change'));
 document.getElementById('department').addEventListener('change', function() {
     const departmentId = this.value;
     const programSelect = document.getElementById('program');

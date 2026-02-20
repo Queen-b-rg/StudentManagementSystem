@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Grades{% endblock %}
+
+{% block content %}
+<h2>Manage Grades — {{ staff.name }}</h2>
+{% if students %}
+  <ul>
+  {% for s in students %}
+    <li>{{ s.user.name }} ({{ s.user.matricule }})</li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p>No students assigned yet.</p>
+{% endif %}
+<a href="{{ url_for('manage_staff', user_id=staff.id) }}" class="btn btn-secondary">Back</a>
+{% endblock %}

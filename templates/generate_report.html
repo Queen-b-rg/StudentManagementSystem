@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Report{% endblock %}
+
+{% block content %}
+<h2>Generate Report — {{ staff.name }}</h2>
+<p>Report generation UI will be implemented here.</p>
+<a href="{{ url_for('manage_staff', user_id=staff.id) }}" class="btn btn-secondary">Back</a>
+{% endblock %}

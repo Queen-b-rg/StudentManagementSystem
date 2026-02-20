@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Assign Courses{% endblock %}
+
+{% block content %}
+<h2>Assign Courses for {{ staff.name }}</h2>
+<p>This is a basic page to assign courses to staff. UI will be expanded.</p>
+<ul>
+{% for p in programs %}
+  <li>{{ p.name }}</li>
+{% endfor %}
+</ul>
+<a href="{{ url_for('manage_staff', user_id=staff.id) }}" class="btn btn-secondary">Back</a>
+{% endblock %}

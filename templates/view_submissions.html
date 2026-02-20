@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Submitted Assignments{% endblock %}
+
+{% block content %}
+<h2>Submissions for {{ staff.name }}</h2>
+{% if submissions %}
+<table class="table">
+    <thead>
+        <tr><th>Assignment</th><th>Student</th><th>Content</th><th>Submitted At</th><th>Grade</th></tr>
+    </thead>
+    <tbody>
+    {% for item in submissions %}
+    <tr>
+        <td>{{ item.assignment.title }}</td>
+        <td>{{ item.submission.student.user.name }}</td>
+        <td>{{ item.submission.content }}</td>
+        <td>{{ item.submission.submitted_at }}</td>
+        <td>{{ item.submission.grade or '-' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No submissions yet.</p>
+{% endif %}
+<a href="{{ url_for('manage_staff', user_id=staff.id) }}" class="btn btn-secondary">Back</a>
+{% endblock %}

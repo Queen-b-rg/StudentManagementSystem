@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Log{% endblock %}
+
+{% block content %}
+<h2>Attendance Log — {{ staff.name }}</h2>
+{% if attendance %}
+  <ul>
+  {% for a in attendance %}
+    <li>{{ a }}</li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p>No attendance records yet.</p>
+{% endif %}
+<a href="{{ url_for('manage_staff', user_id=staff.id) }}" class="btn btn-secondary">Back</a>
+{% endblock %}

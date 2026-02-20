@@ -57,6 +57,7 @@
                 {{ form.password(class="form-control") }}
             </div>
             {{ form.submit(class="btn btn-primary") }}
+            <a href="{{ url_for('student_dashboard' if current_user.role == 'student' else 'admin_dashboard') }}" class="btn btn-secondary">Cancel</a>
         </form>
     </div>
 </div>

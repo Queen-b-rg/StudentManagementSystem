@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Add Notes{% endblock %}
+
+{% block content %}
+<h2>Add Notes — {{ staff.name }}</h2>
+<form method="post">
+  <div class="form-group">
+    <label for="note">Note</label>
+    <textarea id="note" name="note" class="form-control" rows="5"></textarea>
+  </div>
+  <button class="btn btn-primary" type="submit">Save Note</button>
+  <a href="{{ url_for('manage_staff', user_id=staff.id) }}" class="btn btn-secondary">Back</a>
+</form>
+{% endblock %}
